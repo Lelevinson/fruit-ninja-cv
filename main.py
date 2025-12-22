@@ -4,7 +4,7 @@ import sys
 import numpy as np
 import random
 from sensors import WebcamStream, HandTracker
-from game_objects import Blade, Fruit, Bomb, SlicedFruit
+from game_objects import Blade, Fruit, Bomb, SlicedFruit, Explosion
 
 # ----- CONFIG -----
 WIDTH, HEIGHT = 640, 480
@@ -110,6 +110,11 @@ def main():
                     if isinstance(entity, Bomb):
                         # GAME OVER TRIGGER
                         score -= 5 # Punishment
+                        
+                        # Boom Effect
+                        boom = Explosion(entity.pos_x, entity.pos_y)
+                        all_sprites.add(boom)
+                        
                         entity.kill()
                     else:
                         # Slice Effect

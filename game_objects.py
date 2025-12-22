@@ -107,9 +107,9 @@ class Fruit(pygame.sprite.Sprite):
         # Physics
         self.pos_x = float(x)
         self.pos_y = float(y)
-        self.vel_x = random.uniform(-2, 2)     # Very slow horizontal
-        self.vel_y = random.uniform(-11, -8)   # Slower launch
-        self.gravity = 0.15                    # Very floaty
+        self.vel_x = random.uniform(-1.5, 1.5) # Even slower horizontal
+        self.vel_y = random.uniform(-10, -7.5) # Tuned for low gravity
+        self.gravity = 0.08                    # 40% slower feel (Floaty)
         
     def update(self):
         self.vel_y += self.gravity
@@ -162,22 +162,22 @@ class SlicedFruit(pygame.sprite.Sprite):
         # Physics to fly apart
         self.pos_x = float(x)
         self.pos_y = float(y)
-        self.gravity = 0.35
+        self.gravity = 0.12 # Slow fall
         
         # Push apart based on ID
-        # Left half (1) goes left, Right half (2) goes right
         if half_id == 1:
-            self.vel_x = random.uniform(-5, -2)
-            self.angle_speed = 3
+            self.vel_x = random.uniform(-4, -1)
+            self.angle_speed = 2
         else:
-            self.vel_x = random.uniform(2, 5)
-            self.angle_speed = -3
+            self.vel_x = random.uniform(1, 4)
+            self.angle_speed = -2
             
-        self.vel_y = random.uniform(-5, -2) # Slight hop
+        self.vel_y = random.uniform(-3, -1) # Little pop up
         
-        # Rotation logic requires keeping original (optional polish)
+        # Rotation logic
         self.original_image = self.image
         self.angle = 0
+        self.alpha = 255 # For fading if we want (optional)
 
     def update(self):
         self.vel_y += self.gravity
@@ -205,7 +205,7 @@ class Bomb(Fruit):
             
             raw_image = pygame.image.load(path).convert_alpha()
             if "small" not in path:
-                self.image = pygame.transform.scale(raw_image, (80, 80)) # Bombs slightly bigger?
+                self.image = pygame.transform.scale(raw_image, (80, 80)) 
             else:
                 self.image = raw_image
         except:
@@ -219,3 +219,32 @@ class Bomb(Fruit):
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
         self.radius = self.rect.width // 2
+
+class Explosion(pygame.sprite.Sprite):
+    def __init__(self, x, y):
+        super().__init__()
+        try:
+            # Use specific explosion asset
+            path = "assets/explosion_small.png"
+            if not os.path.exists(path):
+                 path = "assets/explosion.png"
+            
+            self.image = pygame.image.load(path).convert_alpha()
+            self.image = pygame.transform.scale(self.image, (150, 150)) # big boom
+        except:
+            self.image = pygame.Surface((100, 100))
+            self.image.fill(RED)
+            
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        self.timer = 30 # frames (0.5 sec at 60fps)
+        self.original_image = self.image
+
+    def update(self):
+        self.timer -= 1
+        # Simple fade
+        alpha = int((self.timer / 30) * 255)
+        self.image.set_alpha(alpha)
+        
+        if self.timer <= 0:
+            self.kill()
