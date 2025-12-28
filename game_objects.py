@@ -248,3 +248,80 @@ class Explosion(pygame.sprite.Sprite):
         
         if self.timer <= 0:
             self.kill()
+
+class SplashEffect(pygame.sprite.Sprite):
+    # Fruit to splash color mapping
+    FRUIT_SPLASH_MAP = {
+        "apple": "red",
+        "watermelon": "red",
+        "banana": "yellow",
+        "pineapple": "yellow",
+        "orange": "orange",
+        "coconut": "transparent"
+    }
+    
+    def __init__(self, x, y, fruit_type, velocity=0):
+        super().__init__()
+        
+        # Determine splash color
+        splash_color = self.FRUIT_SPLASH_MAP.get(fruit_type, "transparent")
+        
+        # Choose size variant based on velocity
+        # High velocity (fast slice) = bigger splash
+        if velocity > 400:
+            size_variant = ""  # Use large splash
+            scale_size = (180, 180)
+        else:
+            size_variant = "_small"
+            scale_size = (120, 120)
+        
+        # Load splash image
+        try:
+            path = f"assets/splash_{splash_color}{size_variant}.png"
+            if not os.path.exists(path):
+                # Fallback to small if large doesn't exist
+                path = f"assets/splash_{splash_color}_small.png"
+                scale_size = (120, 120)
+            
+            raw_image = pygame.image.load(path).convert_alpha()
+            self.image = pygame.transform.scale(raw_image, scale_size)
+            self.original_image = self.image.copy()
+            
+        except Exception as e:
+            # Fallback to colored circle
+            self.image = pygame.Surface((100, 100), pygame.SRCALPHA)
+            color_map = {
+                "red": (255, 50, 50),
+                "yellow": (255, 255, 50),
+                "orange": (255, 165, 0)
+            }
+            color = color_map.get(splash_color, (200, 200, 200))
+            pygame.draw.circle(self.image, (*color, 150), (50, 50), 50)
+            self.original_image = self.image.copy()
+        
+        self.rect = self.image.get_rect()
+        self.rect.center = (x, y)
+        
+        # Animation properties
+        self.lifetime = 20  # frames (~0.33 sec at 60fps)
+        self.age = 0
+        
+        # Slight random rotation for variety
+        angle = random.randint(-15, 15)
+        self.image = pygame.transform.rotate(self.original_image, angle)
+        self.rect = self.image.get_rect(center=(x, y))
+        
+    def update(self):
+        self.age += 1
+        
+        # Fade out
+        alpha = int(255 * (1 - self.age / self.lifetime))
+        if alpha < 0:
+            alpha = 0
+            
+        # Create faded version
+        self.image = self.original_image.copy()
+        self.image.set_alpha(alpha)
+        
+        if self.age >= self.lifetime:
+            self.kill()

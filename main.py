@@ -9,7 +9,7 @@ from audio_manager import AudioManager
 from input_manager import MouseInput, HandInput
 from ui_manager import SceneManager
 from game_engine import ClassicMode, SurvivalMode
-from game_objects import Blade, Fruit, Bomb, SlicedFruit, Explosion
+from game_objects import Blade, Fruit, Bomb, SlicedFruit, Explosion, SplashEffect
 
 # Colors
 WHITE = (255, 255, 255)
@@ -156,6 +156,10 @@ def main():
                                 # Hit Fruit
                                 audio.play_sfx("splat")
                                 pts = game_mode.on_slice(entity)
+                                
+                                # Spawn juice splash effect
+                                splash = SplashEffect(entity.pos_x, entity.pos_y, entity.fruit_type, velocity)
+                                all_sprites.add(splash)
                                 
                                 # Spawn halves
                                 h1 = SlicedFruit(entity.pos_x, entity.pos_y, entity.fruit_type, 1)
