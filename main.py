@@ -1,166 +1,219 @@
 import pygame
-import cv2
 import sys
-import numpy as np
 import random
-from sensors import WebcamStream, HandTracker
+import cv2
+import numpy as np
+
+# Modules
+from audio_manager import AudioManager
+from input_manager import MouseInput, HandInput
+from ui_manager import SceneManager
+from game_engine import ClassicMode, SurvivalMode
 from game_objects import Blade, Fruit, Bomb, SlicedFruit, Explosion
 
-# ----- CONFIG -----
-WIDTH, HEIGHT = 640, 480
-FPS = 60
-MIN_CUT_VELOCITY = 200 # Adjusted for lower resolution (pixels are fewer)
+# Colors
+WHITE = (255, 255, 255)
 
-def map_coordinates(cam_x, cam_y, cam_w, cam_h, screen_w, screen_h):
-    # Map camera coordinates to screen coordinates
-    # We flip output horizontally to mirror the user
-    # So cam_x=0 (left) -> screen_x=WIDTH (right)
-    # But HandTracker usually flips image, so let's check.
-    # Our sensors.py processes the flipped frame logic internally OR we flip here.
-    # New sensors logic: 
-    #   HandTracker processing RGB frame. 
-    # Let's flip the coordinates manually here if we want mirror control.
-    
-    # Simple linear map
-    sx = int((cam_x / cam_w) * screen_w)
-    sy = int((cam_y / cam_h) * screen_h)
-    return sx, sy
+# Config
+WIDTH, HEIGHT = 800, 600 # Keeping larger window for menu usability
+FPS = 60
+MIN_CUT_VELOCITY = 150 # Rescaled 
 
 def main():
     pygame.init()
     screen = pygame.display.set_mode((WIDTH, HEIGHT))
-    pygame.display.set_caption("Fruit Ninja V2 - High Performance")
+    pygame.display.set_caption("Fruit Ninja Final")
     clock = pygame.time.Clock()
-    font = pygame.font.Font(None, 60)
-
-    # Initialize Threaded Camera
-    # Note: WebcamStream starts a thread to read frames
-    webcam = WebcamStream(src=0, width=WIDTH, height=HEIGHT).start()
     
-    # Initialize Tracker
-    tracker = HandTracker(detection_con=0.6, track_con=0.6)
+    # Systems
+    audio = AudioManager()
+    ui = SceneManager(WIDTH, HEIGHT)
     
-    # Game State
+    # Game State Variables
+    input_provider = None
+    game_mode = None
     blade = Blade()
+    
     all_sprites = pygame.sprite.Group()
-    fruits = pygame.sprite.Group()
+    fruits = pygame.sprite.Group() # Only active fruits (not slices or bombs)
     
-    score = 0
+    # Start Music
+    audio.play_music("menu")
     
-    # Wait for camera to warm up
-    while webcam.read() is None:
-        pass
-        
     running = True
     while running:
-        # 1. Capture & Tracking
-        frame = webcam.read()
+        mx, my = pygame.mouse.get_pos()
+        click = False
         
-        # Flip frame for display/interaction (Mirror logic)
-        # It feels more natural if you move right, hand goes right on screen (which is mirrored)
-        frame = cv2.flip(frame, 1)
-        
-        # Track Hand
-        fh, fw, _ = frame.shape
-        tx, ty, velocity, is_palm_open = tracker.find_position(frame)
-        
-        # 2. Input Handling
+        # Event Loop
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:
+                    click = True
+                    
+        # --- SCENE LOGIC ---
         
-        # Update Blade only if not paused by Palm
-        if is_palm_open:
-            # Maybe show "PAUSE" or "SHIELD"
-            pass # Don't update blade position, effectively stopping cuts
-        elif tx is not None:
-             # Map camera to screen
-             # Since we flipped the frame beforehand, coordinates are already 'mirrored' relative to raw cam
-             sx, sy = map_coordinates(tx, ty, fw, fh, WIDTH, HEIGHT)
-             blade.update(sx, sy)
-        else:
-             pass
-             
-        # 3. Game Logic
-        # Spawning
-        # 3. Game Logic
-        # Spawning
-        if random.randint(1, 40) == 1:
-            fx = random.randint(100, WIDTH-100)
-            fy = HEIGHT + 20
-            
-            # 20% chance of Bomb (1 in 5)
-            if random.randint(1, 5) == 1:
-                obj = Bomb(fx, fy, WIDTH, HEIGHT)
-            else:
-                obj = Fruit(fx, fy, WIDTH, HEIGHT)
+        if ui.current_scene == "MENU":
+            action = ui.handle_input("MENU", mx, my, click)
+            ui.draw_menu(screen)
+            if action == "GOTO_MODE":
+                ui.current_scene = "MODE_SEL"
+                audio.play_sfx("start")
+
+        elif ui.current_scene == "MODE_SEL":
+            action = ui.handle_input("MODE_SEL", mx, my, click)
+            ui.draw_mode_select(screen)
+            if action == "MODE_CLASSIC":
+                game_mode = ClassicMode()
+                ui.current_scene = "INPUT_SEL"
+                audio.play_sfx("start")
+            elif action == "MODE_SURVIVAL":
+                game_mode = SurvivalMode()
+                ui.current_scene = "INPUT_SEL"
+                audio.play_sfx("start")
                 
-            all_sprites.add(obj)
-            fruits.add(obj)
+        elif ui.current_scene == "INPUT_SEL":
+            action = ui.handle_input("INPUT_SEL", mx, my, click)
+            ui.draw_input_select(screen)
             
-        all_sprites.update()
-        
-        # Collision
-        segments = blade.get_segments()
-        
-        # Only check collision if moving fast AND NOT PALM
-        if velocity > MIN_CUT_VELOCITY and segments and not is_palm_open:
-            for entity in fruits:
-                if entity.check_slice(segments):
-                    if isinstance(entity, Bomb):
-                        # GAME OVER TRIGGER
-                        score -= 5 # Punishment
-                        
-                        # Boom Effect
-                        boom = Explosion(entity.pos_x, entity.pos_y)
-                        all_sprites.add(boom)
-                        
-                        entity.kill()
+            if action: # Selection made
+                # Init Input
+                if action == "INPUT_MOUSE":
+                    input_provider = MouseInput(WIDTH, HEIGHT)
+                elif action == "INPUT_HAND":
+                    input_provider = HandInput(WIDTH, HEIGHT)
+                
+                # Start Game
+                ui.current_scene = "GAME"
+                audio.play_music("game_slow")
+                # Reset sprites
+                all_sprites.empty()
+                fruits.empty()
+                blade = Blade()
+
+        elif ui.current_scene == "GAME":
+            # 1. Update Input
+            ix, iy, velocity, is_paused = input_provider.get_input()
+            
+            # Draw Background (Camera or Default)
+            if hasattr(input_provider, 'get_frame'):
+                frame = input_provider.get_frame()
+                if frame is not None:
+                     # Convert and scale
+                     img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                     img_rgb = np.rot90(img_rgb)
+                     surf = pygame.surfarray.make_surface(img_rgb)
+                     surf = pygame.transform.flip(surf, True, False)
+                     screen.blit(pygame.transform.scale(surf, (WIDTH, HEIGHT)), (0,0))
+                else:
+                    screen.fill((50, 50, 50))
+            else:
+                screen.fill((20, 20, 20)) # Dark background for mouse mode
+            
+            # 2. Update Logic
+            if not is_paused:
+                # Update Blade
+                if ix is not None:
+                    blade.update(ix, iy)
+                
+                # Spawner
+                if random.randint(1, 40) == 1:
+                    # Spawn logic
+                    spawn_x = random.randint(100, WIDTH-100)
+                    spawn_y = HEIGHT + 20
+                    
+                    if random.randint(1, 5) == 1: # 20% Bomb
+                        b = Bomb(spawn_x, spawn_y, WIDTH, HEIGHT)
+                        all_sprites.add(b)
+                        fruits.add(b)
                     else:
-                        # Slice Effect
-                        # Spawn two halves
-                        half1 = SlicedFruit(entity.pos_x, entity.pos_y, entity.fruit_type, 1)
-                        half2 = SlicedFruit(entity.pos_x, entity.pos_y, entity.fruit_type, 2)
-                        all_sprites.add(half1)
-                        all_sprites.add(half2)
-                        
-                        entity.kill()
-                        score += 1
-        
-        # 4. Rendering
-        # Draw Background (Webcam)
-        # Convert to Surface
-        img_rgb = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        img_rgb = np.rot90(img_rgb)
-        frame_surface = pygame.surfarray.make_surface(img_rgb)
-        frame_surface = pygame.transform.flip(frame_surface, True, False) # Pygame rotation fix
-        screen.blit(pygame.transform.scale(frame_surface, (WIDTH, HEIGHT)), (0, 0))
-        
-        # Draw Game
-        all_sprites.draw(screen)
-        blade.draw(screen)
-        
-        # UI
-        score_surf = font.render(f"Score: {score}", True, (255, 255, 255))
-        screen.blit(score_surf, (20, 20))
-        
-        # Palm Status
-        if is_palm_open:
-            pause_surf = font.render("PAUSED / PALM", True, (255, 255, 0))
-            screen.blit(pause_surf, (WIDTH//2 - 100, HEIGHT//2))
-        
-        # Debug Info
-        fps_text = f"FPS: {int(clock.get_fps())}"
-        fps_surf = font.render(fps_text, True, (0, 255, 0))
-        screen.blit(fps_surf, (WIDTH - 150, 20))
-        
-        # debug_surf = font.render(f"Vel: {int(velocity)}", True, (200, 200, 200))
-        # screen.blit(debug_surf, (20, 80)) # Uncomment to debug velocity threshold
-        
+                        f = Fruit(spawn_x, spawn_y, WIDTH, HEIGHT)
+                        all_sprites.add(f)
+                        fruits.add(f)
+                
+                all_sprites.update()
+                
+                # Collisions
+                segments = blade.get_segments()
+                if velocity > MIN_CUT_VELOCITY and segments:
+                    hit_count = 0 
+                    # We iterate copy because we modify group
+                    for entity in list(fruits):
+                        if entity.check_slice(segments):
+                            hit_count += 1
+                            
+                            if isinstance(entity, Bomb):
+                                # Hit Bomb
+                                audio.play_sfx("bomb")
+                                boom = Explosion(entity.pos_x, entity.pos_y)
+                                all_sprites.add(boom)
+                                entity.kill()
+                                game_mode.on_bomb()
+                                
+                            else:
+                                # Hit Fruit
+                                audio.play_sfx("splat")
+                                pts = game_mode.on_slice(entity)
+                                
+                                # Spawn halves
+                                h1 = SlicedFruit(entity.pos_x, entity.pos_y, entity.fruit_type, 1)
+                                h2 = SlicedFruit(entity.pos_x, entity.pos_y, entity.fruit_type, 2)
+                                all_sprites.add(h1)
+                                all_sprites.add(h2)
+                                entity.kill()
+                    
+                    # Combo Sound
+                    if hit_count > 1:
+                        audio.play_sfx("combo")
+
+                # Check dropped fruits
+                for entity in list(fruits):
+                     if entity.rect.top > HEIGHT:
+                         if not isinstance(entity, Bomb): # Dropping bomb is fine
+                             game_mode.on_miss()
+                             entity.kill()
+                         else:
+                             entity.kill()
+
+                # Check Game Over
+                if game_mode.game_over:
+                    ui.current_scene = "OVER"
+                    audio.play_sfx("over")
+                    audio.stop_music()
+            
+            # 3. Draw Game
+            all_sprites.draw(screen)
+            blade.draw(screen)
+            
+            # UI Overlay
+            # Pause Text
+            if is_paused:
+                txt = ui.font_big.render("PAUSED", True, (255, 255, 0))
+                screen.blit(txt, (WIDTH//2 - txt.get_width()//2, HEIGHT//2))
+            
+            # HUD
+            hud = ui.font_small.render(game_mode.get_status(), True, WHITE)
+            screen.blit(hud, (20, 20))
+
+        elif ui.current_scene == "OVER":
+            # Keep drawing game in background (static)
+            all_sprites.draw(screen)
+            action = ui.handle_input("OVER", mx, my, click)
+            ui.draw_game_over(screen, game_mode.score)
+            
+            if action == "GOTO_MENU":
+                # Cleanup
+                if input_provider:
+                    input_provider.cleanup()
+                    input_provider = None
+                ui.current_scene = "MENU"
+                audio.play_music("menu")
+
         pygame.display.flip()
         clock.tick(FPS)
         
-    webcam.stop()
     pygame.quit()
     sys.exit()
 
