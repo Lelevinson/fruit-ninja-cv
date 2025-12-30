@@ -1,4 +1,5 @@
 import pygame
+import os
 
 # Colors
 WHITE = (255, 255, 255)
@@ -9,21 +10,46 @@ GREEN = (50, 200, 50)
 CYAN = (0, 255, 255)
 
 class Button:
-    def __init__(self, text, x, y, w, h, color, action_code):
+    def __init__(self, x, y, w, h, action_code, text=None, image_name=None, color=ORANGE):
         self.rect = pygame.Rect(x, y, w, h)
+        self.action = action_code
         self.text = text
         self.color = color
-        self.action = action_code
         self.hover = False
+        self.image = None
+        self.original_image = None
+        
+        if image_name:
+            path = f"assets/buttons/{image_name}"
+            if os.path.exists(path):
+                try:
+                    raw = pygame.image.load(path).convert_alpha()
+                    self.image = pygame.transform.scale(raw, (w, h))
+                    self.original_image = self.image
+                except Exception as e:
+                    print(f"Failed to load button {image_name}: {e}")
         
     def draw(self, screen, font):
-        col = (min(self.color[0]+30, 255), min(self.color[1]+30, 255), min(self.color[2]+30, 255)) if self.hover else self.color
-        pygame.draw.rect(screen, col, self.rect, border_radius=10)
-        pygame.draw.rect(screen, WHITE, self.rect, 2, border_radius=10)
-        
-        txt_surf = font.render(self.text, True, WHITE)
-        text_rect = txt_surf.get_rect(center=self.rect.center)
-        screen.blit(txt_surf, text_rect)
+        # Hover effect
+        if self.hover and self.image:
+            # Simple scale up effect or brightness
+            # Let's just draw it slightly larger? Or cleaner: just draw normally.
+            # Maybe slight tint? 
+            # For simplicity, just draw.
+            pass
+            
+        if self.image:
+            screen.blit(self.image, self.rect)
+        else:
+            # Fallback to text button
+            col = (min(self.color[0]+30, 255), min(self.color[1]+30, 255), min(self.color[2]+30, 255)) if self.hover else self.color
+            pygame.draw.rect(screen, col, self.rect, border_radius=10)
+            pygame.draw.rect(screen, WHITE, self.rect, 2, border_radius=10)
+            
+            if self.text:
+                txt_surf = font.render(self.text, True, WHITE)
+                text_rect = txt_surf.get_rect(center=self.rect.center)
+                screen.blit(txt_surf, text_rect)
         
     def check_hover(self, mx, my):
         self.hover = self.rect.collidepoint(mx, my)
@@ -45,23 +71,30 @@ class SceneManager:
         
         # Buttons for various screens
         cx = width // 2
+        cy = height // 2
         
-        # Menu
-        self.btn_start = Button("START GAME", cx - 120, height//2 + 50, 240, 60, ORANGE, "GOTO_MODE")
+        # Menu (New Asset)
+        self.btn_start = Button(cx - 100, cy + 50, 200, 80, "GOTO_MODE", image_name="btn_play.png")
         
-        # Mode Select
-        self.btn_classic = Button("CLASSIC", cx - 250, height//2, 200, 60, GREEN, "MODE_CLASSIC")
-        self.btn_survival = Button("SURVIVAL", cx + 50, height//2, 200, 60, RED, "MODE_SURVIVAL")
+        # Mode Select (No specific assets, using fallback text)
+        self.btn_classic = Button(cx - 220, cy, 200, 60, "MODE_CLASSIC", text="CLASSIC", color=GREEN)
+        self.btn_survival = Button(cx + 20, cy, 200, 60, "MODE_SURVIVAL", text="SURVIVAL", color=RED)
         
-        # Input Select
-        self.btn_mouse = Button("MOUSE", cx - 250, height//2, 200, 60, CYAN, "INPUT_MOUSE")
-        self.btn_hand = Button("CAMERA CHECK", cx + 50, height//2, 200, 60, ORANGE, "INPUT_HAND")
+        # Input Select (No specific assets)
+        self.btn_mouse = Button(cx - 220, cy, 200, 60, "INPUT_MOUSE", text="MOUSE", color=CYAN)
+        self.btn_hand = Button(cx + 20, cy, 200, 60, "INPUT_HAND", text="CAMERA", color=ORANGE)
         
-        # Game Over
-        self.btn_restart = Button("MENU", cx - 100, height//2 + 100, 200, 60, ORANGE, "GOTO_MENU")
+        # Game Over (New Assets)
+        self.btn_home = Button(cx - 220, cy + 100, 200, 80, "GOTO_MENU", image_name="btn_home.png")
+        self.btn_replay = Button(cx + 20, cy + 100, 200, 80, "RESTART", image_name="btn_replay.png")
+        
+        # In-Game Icons
+        self.btn_pause = Button(width - 80, 20, 60, 60, "PAUSE", image_name="btn_pause_icon.png")
 
     def draw_menu(self, screen):
-        screen.fill((30, 30, 40))
+        screen.fill((30, 30, 40)) # Dark Blue-ish
+        # Draw background image if available? 
+        # For now solid color
         title = self.font_big.render("FRUIT NINJA V3", True, ORANGE)
         screen.blit(title, (self.width//2 - title.get_width()//2, 100))
         
@@ -86,10 +119,14 @@ class SceneManager:
         self.btn_mouse.draw(screen, self.font_med)
         self.btn_hand.draw(screen, self.font_med)
         
+    def draw_game(self, screen):
+        # Overlay UI for game
+        self.btn_pause.draw(screen, self.font_med)
+        
     def draw_game_over(self, screen, score):
         # Overlay
         s = pygame.Surface((self.width, self.height))
-        s.set_alpha(150)
+        s.set_alpha(180) # Darker
         s.fill(BLACK)
         screen.blit(s, (0,0))
         
@@ -99,7 +136,8 @@ class SceneManager:
         sc = self.font_med.render(f"Final Score: {score}", True, WHITE)
         screen.blit(sc, (self.width//2 - sc.get_width()//2, 250))
         
-        self.btn_restart.draw(screen, self.font_med)
+        self.btn_home.draw(screen, self.font_med)
+        self.btn_replay.draw(screen, self.font_med)
 
     def handle_input(self, scene, mx, my, click):
         if scene == "MENU":
@@ -120,8 +158,15 @@ class SceneManager:
             a2 = self.btn_hand.check_click(mx, my, click)
             return a1 or a2
             
+        elif scene == "GAME":
+            self.btn_pause.check_hover(mx, my)
+            return self.btn_pause.check_click(mx, my, click)
+            
         elif scene == "OVER":
-            self.btn_restart.check_hover(mx, my)
-            return self.btn_restart.check_click(mx, my, click)
+            self.btn_home.check_hover(mx, my)
+            self.btn_replay.check_hover(mx, my)
+            a1 = self.btn_home.check_click(mx, my, click)
+            a2 = self.btn_replay.check_click(mx, my, click)
+            return a1 or a2
             
         return None

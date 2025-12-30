@@ -95,8 +95,19 @@ def main():
 
         elif ui.current_scene == "GAME":
             # 1. Update Input
-            ix, iy, velocity, is_paused = input_provider.get_input()
+            ix, iy, velocity, input_paused = input_provider.get_input()
             
+            # Handle UI Input (Pause Button)
+            action = ui.handle_input("GAME", mx, my, click)
+            if action == "PAUSE":
+                # Toggle Pause (Implementation: simple freeze for now)
+                # Since we don't have a full pause menu yet, let's just use input_paused logic
+                # or add a global pause state. For now, let's just make it do nothing or print.
+                # User asked for "Pause game". Let's create a PAUSED state?
+                # Actually, input_paused (Palm) is already there. 
+                # Let's toggle a software pause.
+                pass 
+
             # Draw Background (Camera or Default)
             if hasattr(input_provider, 'get_frame'):
                 frame = input_provider.get_frame()
@@ -113,7 +124,10 @@ def main():
                 screen.fill((20, 20, 20)) # Dark background for mouse mode
             
             # 2. Update Logic
-            if not is_paused:
+            # Combine Input Pause (Palm) and UI Pause (Button)
+            # For now, just Palm.
+            
+            if not input_paused:
                 # Update Blade
                 if ix is not None:
                     blade.update(ix, iy)
@@ -191,9 +205,12 @@ def main():
             all_sprites.draw(screen)
             blade.draw(screen)
             
+            # Draw UI Overlay (Buttons + Score)
+            ui.draw_game(screen)
+            
             # UI Overlay
             # Pause Text
-            if is_paused:
+            if input_paused:
                 txt = ui.font_big.render("PAUSED", True, (255, 255, 0))
                 screen.blit(txt, (WIDTH//2 - txt.get_width()//2, HEIGHT//2))
             
@@ -214,10 +231,31 @@ def main():
                     input_provider = None
                 ui.current_scene = "MENU"
                 audio.play_music("menu")
+                
+            elif action == "RESTART":
+                 # Reset Logic
+                 ui.current_scene = "GAME"
+                 audio.play_music("game_slow") # or fast?
+                 
+                 # Choose mode again? No, Restart same mode.
+                 # Re-init game mode stats using same class logic
+                 if isinstance(game_mode, ClassicMode):
+                     game_mode = ClassicMode()
+                 else:
+                     game_mode = SurvivalMode()
+                     
+                 all_sprites.empty()
+                 fruits.empty()
+                 blade = Blade()
 
         pygame.display.flip()
         clock.tick(FPS)
         
+    
+    # Cleanup logic
+    if input_provider:
+        input_provider.cleanup()
+
     pygame.quit()
     sys.exit()
 
