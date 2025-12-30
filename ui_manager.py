@@ -20,7 +20,7 @@ class Button:
         self.original_image = None
         
         if image_name:
-            path = f"assets/buttons/{image_name}"
+            path = f"assets/ui/buttons/{image_name}"
             if os.path.exists(path):
                 try:
                     raw = pygame.image.load(path).convert_alpha()
@@ -92,9 +92,7 @@ class SceneManager:
         self.btn_pause = Button(width - 80, 20, 60, 60, "PAUSE", image_name="btn_pause_icon.png")
 
     def draw_menu(self, screen):
-        screen.fill((30, 30, 40)) # Dark Blue-ish
-        # Draw background image if available? 
-        # For now solid color
+        # screen.fill((30, 30, 40)) # Handled in main
         title = self.font_big.render("FRUIT NINJA V3", True, ORANGE)
         screen.blit(title, (self.width//2 - title.get_width()//2, 100))
         
@@ -104,7 +102,7 @@ class SceneManager:
         self.btn_start.draw(screen, self.font_med)
         
     def draw_mode_select(self, screen):
-        screen.fill((40, 30, 30))
+        # screen.fill((40, 30, 30))
         title = self.font_med.render("SELECT MODE", True, WHITE)
         screen.blit(title, (self.width//2 - title.get_width()//2, 100))
         
@@ -112,7 +110,7 @@ class SceneManager:
         self.btn_survival.draw(screen, self.font_med)
 
     def draw_input_select(self, screen):
-        screen.fill((30, 40, 40))
+        # screen.fill((30, 40, 40))
         title = self.font_med.render("SELECT CONTROL", True, WHITE)
         screen.blit(title, (self.width//2 - title.get_width()//2, 100))
         

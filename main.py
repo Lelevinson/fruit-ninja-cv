@@ -29,6 +29,20 @@ def main():
     audio = AudioManager()
     ui = SceneManager(WIDTH, HEIGHT)
     
+    # Load Background
+    try:
+        bg_raw = pygame.image.load("assets/background/game_background.jpg").convert()
+        bg_img = pygame.transform.scale(bg_raw, (WIDTH, HEIGHT))
+        # Darken it
+        dark = pygame.Surface((WIDTH, HEIGHT))
+        dark.set_alpha(80) # 30% dark
+        dark.fill((0, 0, 0))
+        bg_img.blit(dark, (0,0))
+    except Exception as e:
+        print(f"Background load error: {e}")
+        bg_img = pygame.Surface((WIDTH, HEIGHT))
+        bg_img.fill((50, 50, 50))
+
     # Game State Variables
     input_provider = None
     game_mode = None
@@ -36,6 +50,9 @@ def main():
     
     all_sprites = pygame.sprite.Group()
     fruits = pygame.sprite.Group() # Only active fruits (not slices or bombs)
+    
+    # VFX State
+    shake_timer = 0
     
     # Start Music
     audio.play_music("menu")
@@ -45,6 +62,13 @@ def main():
         mx, my = pygame.mouse.get_pos()
         click = False
         
+        # Shake Logic
+        shake_x, shake_y = 0, 0
+        if shake_timer > 0:
+            shake_timer -= 1
+            shake_x = random.randint(-5, 5)
+            shake_y = random.randint(-5, 5)
+
         # Event Loop
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
@@ -56,13 +80,16 @@ def main():
         # --- SCENE LOGIC ---
         
         if ui.current_scene == "MENU":
+            # Draw bg
+            screen.blit(bg_img, (0,0))
             action = ui.handle_input("MENU", mx, my, click)
-            ui.draw_menu(screen)
+            ui.draw_menu(screen) # Draws UI over it
             if action == "GOTO_MODE":
                 ui.current_scene = "MODE_SEL"
                 audio.play_sfx("start")
 
         elif ui.current_scene == "MODE_SEL":
+            screen.blit(bg_img, (0,0))
             action = ui.handle_input("MODE_SEL", mx, my, click)
             ui.draw_mode_select(screen)
             if action == "MODE_CLASSIC":
@@ -75,6 +102,7 @@ def main():
                 audio.play_sfx("start")
                 
         elif ui.current_scene == "INPUT_SEL":
+            screen.blit(bg_img, (0,0))
             action = ui.handle_input("INPUT_SEL", mx, my, click)
             ui.draw_input_select(screen)
             
@@ -100,12 +128,6 @@ def main():
             # Handle UI Input (Pause Button)
             action = ui.handle_input("GAME", mx, my, click)
             if action == "PAUSE":
-                # Toggle Pause (Implementation: simple freeze for now)
-                # Since we don't have a full pause menu yet, let's just use input_paused logic
-                # or add a global pause state. For now, let's just make it do nothing or print.
-                # User asked for "Pause game". Let's create a PAUSED state?
-                # Actually, input_paused (Palm) is already there. 
-                # Let's toggle a software pause.
                 pass 
 
             # Draw Background (Camera or Default)
@@ -118,10 +140,12 @@ def main():
                      surf = pygame.surfarray.make_surface(img_rgb)
                      surf = pygame.transform.flip(surf, True, False)
                      screen.blit(pygame.transform.scale(surf, (WIDTH, HEIGHT)), (0,0))
+                     # Overlay BG with transparency for vibe
+                     screen.blit(bg_img, (0,0), special_flags=pygame.BLEND_MULT) 
                 else:
-                    screen.fill((50, 50, 50))
+                    screen.blit(bg_img, (0,0))
             else:
-                screen.fill((20, 20, 20)) # Dark background for mouse mode
+                screen.blit(bg_img, (shake_x, shake_y)) # Shake BG only on mouse mode? Or all?
             
             # 2. Update Logic
             # Combine Input Pause (Palm) and UI Pause (Button)
@@ -165,6 +189,7 @@ def main():
                                 all_sprites.add(boom)
                                 entity.kill()
                                 game_mode.on_bomb()
+                                shake_timer = 20
                                 
                             else:
                                 # Hit Fruit

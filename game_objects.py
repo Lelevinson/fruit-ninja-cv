@@ -77,9 +77,9 @@ class Fruit(pygame.sprite.Sprite):
         # Load Image
         # Try loading small version for performance if exists, else normal
         try:
-            path = f"assets/{self.fruit_type}_small.png"
+            path = f"assets/fruits/{self.fruit_type}_small.png"
             if not os.path.exists(path):
-                path = f"assets/{self.fruit_type}.png"
+                path = f"assets/fruits/{self.fruit_type}.png"
             
             raw_image = pygame.image.load(path).convert_alpha()
             # If standard ones are huge (300KB+ pngs might be large), we might need scaling.
@@ -138,24 +138,28 @@ class Fruit(pygame.sprite.Sprite):
 class SlicedFruit(pygame.sprite.Sprite):
     def __init__(self, x, y, fruit_type, half_id):
         super().__init__()
-        # Load half image
-        # half_id is 1 or 2
+        # Try loading specific half
         try:
-            path = f"assets/{fruit_type}_half_{half_id}_small.png"
-            if not os.path.exists(path):
-                # Retry without small
-                path = f"assets/{fruit_type}_half_{half_id}.png"
+            # e.g. assets/fruits/apple_half_1_small.png
+            base = f"assets/fruits/{fruit_type}_half_{half_id}"
+            path_small = f"{base}_small.png"
+            path_large = f"{base}.png"
             
-            raw = pygame.image.load(path).convert_alpha()
-            if "small" not in path:
-                 self.image = pygame.transform.scale(raw, (60, 60))
+            path = path_small if os.path.exists(path_small) else path_large
+            
+            if os.path.exists(path):
+                 raw = pygame.image.load(path).convert_alpha()
+                 if "small" not in path:
+                     self.image = pygame.transform.scale(raw, (35, 70)) # generic half size
+                 else:
+                     self.image = raw
             else:
-                 self.image = raw
-        except:
+                 raise FileNotFoundError(f"Half image not found: {path}")
+        except Exception as e:
+            print(f"SlicedFruit load error for {fruit_type} half {half_id}: {e}")
             # Fallback
-            self.image = pygame.Surface((30, 30))
-            self.image.fill(GREEN)
-            
+            self.image = pygame.Surface((35, 35), pygame.SRCALPHA)
+            pygame.draw.arc(self.image, GREEN, (0,0,35,35), 0, 3.14, 20)          
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
         
@@ -194,28 +198,24 @@ class SlicedFruit(pygame.sprite.Sprite):
 
 class Bomb(Fruit):
     def __init__(self, x, y, width, height):
-        # Initialize parent logic partially but override image
-        super().__init__(x, y, width, height, fruit_type="bomb")
-        
-        # Load Bomb Image specifically
+        super().__init__(x, y, width, height, "bomb")
         try:
-            path = "assets/bomb_small.png"
+            path = "assets/fruits/bomb_small.png"
             if not os.path.exists(path):
-                path = "assets/bomb.png"
+                 path = "assets/fruits/bomb.png"
             
-            raw_image = pygame.image.load(path).convert_alpha()
+            self.image = pygame.image.load(path).convert_alpha()
             if "small" not in path:
-                self.image = pygame.transform.scale(raw_image, (80, 80)) 
-            else:
-                self.image = raw_image
-        except:
-             # Fallback
-            self.radius = 40
-            self.color = (50, 50, 50)
-            self.image = pygame.Surface((self.radius*2, self.radius*2), pygame.SRCALPHA)
-            pygame.draw.circle(self.image, self.color, (self.radius, self.radius), self.radius)
-            pygame.draw.circle(self.image, (255, 0, 0), (self.radius, self.radius), 15)
+                 self.image = pygame.transform.scale(self.image, (80, 80))
             
+            self.radius = self.image.get_width() // 2
+        except Exception as e:
+            print(f"Bomb load error: {e}")
+            self.radius = 40
+            self.image = pygame.Surface((80, 80), pygame.SRCALPHA)
+            pygame.draw.circle(self.image, (50, 50, 50), (40, 40), 40)
+            pygame.draw.circle(self.image, RED, (40, 40), 10) # Fuse
+        
         self.rect = self.image.get_rect()
         self.rect.center = (x, y)
         self.radius = self.rect.width // 2
@@ -225,9 +225,9 @@ class Explosion(pygame.sprite.Sprite):
         super().__init__()
         try:
             # Use specific explosion asset
-            path = "assets/explosion_small.png"
+            path = "assets/vfx/explosion_small.png"
             if not os.path.exists(path):
-                 path = "assets/explosion.png"
+                 path = "assets/vfx/explosion.png"
             
             self.image = pygame.image.load(path).convert_alpha()
             self.image = pygame.transform.scale(self.image, (150, 150)) # big boom
@@ -277,10 +277,10 @@ class SplashEffect(pygame.sprite.Sprite):
         
         # Load splash image
         try:
-            path = f"assets/splash_{splash_color}{size_variant}.png"
+            path = f"assets/vfx/splash_{splash_color}{size_variant}.png"
             if not os.path.exists(path):
                 # Fallback to small if large doesn't exist
-                path = f"assets/splash_{splash_color}_small.png"
+                path = f"assets/vfx/splash_{splash_color}_small.png"
                 scale_size = (120, 120)
             
             raw_image = pygame.image.load(path).convert_alpha()
