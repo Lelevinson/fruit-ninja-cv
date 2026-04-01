@@ -1,0 +1,13 @@
+name: fruit-ninja-opencv
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.11
+  - numpy
+  - pygame
+  - opencv
+  - pip
+  - pip:
+      - mediapipe==0.10.14
+      - moviepy
