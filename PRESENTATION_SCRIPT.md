@@ -1,4 +1,4 @@
-# Fruit Ninja Mini Game Presentation Script
+# Fruit Ninja Mini Game Presentation Script 
 
 ## Quick Use Guide
 
